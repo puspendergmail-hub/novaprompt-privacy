@@ -1,0 +1,16 @@
+{
+  "appId": "com.neontakkar.game",
+  "appName": "NEON TAKKAR",
+  "webDir": "www",
+  "backgroundColor": "#080914",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#080914"
+  },
+  "plugins": {
+    "FirebaseAuthentication": {
+      "skipNativeAuth": true,
+      "providers": ["google.com"]
+    }
+  }
+}

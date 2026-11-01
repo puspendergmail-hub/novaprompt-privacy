@@ -1,0 +1,14 @@
+{
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs20",
+    "predeploy": ["node \"$RESOURCE_DIR/../scripts/sync-shared.js\""]
+  },
+  "database": { "rules": "database.rules.json" },
+  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
+  "hosting": { "public": "www", "ignore": ["**/.*"] },
+  "emulators": {
+    "auth": { "port": 9099 }, "functions": { "port": 5001 }, "firestore": { "port": 8080 },
+    "database": { "port": 9000 }, "hosting": { "port": 5000 }, "ui": { "enabled": true }
+  }
+}

@@ -1,0 +1,69 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "rooms": {
+      ".indexOn": ["createdAt"],
+      "$code": {
+        ".read": "auth != null && data.child('players').child(auth.uid).exists()",
+        "intents": {
+          "$id": {
+            ".write": "auth != null && !data.exists() && newData.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists()",
+            ".validate": "newData.child('uid').val() === auth.uid && newData.child('type').isString() && newData.child('type').val().matches(/^(roll|move|start|resign|timeout)$/)"
+          }
+        },
+        "chat": {
+          ".indexOn": ["at"],
+          "$id": {
+            ".write": "auth != null && !data.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists()",
+            ".validate": "newData.child('uid').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('name').isString() && newData.child('name').val().length <= 20"
+          }
+        },
+        "reactions": {
+          ".indexOn": ["at"],
+          "$id": {
+            ".write": "auth != null && !data.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists()",
+            ".validate": "newData.child('uid').val() === auth.uid && newData.child('emoji').isString() && newData.child('emoji').val().length <= 8"
+          }
+        },
+        "presence": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid && root.child('rooms').child($code).child('players').child($uid).exists()",
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    },
+    "status": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.uid === $uid",
+        ".validate": "newData.hasChildren(['state', 'last']) && newData.child('state').val().matches(/^(online|offline)$/)"
+      }
+    },
+    "invites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$id": { ".write": "auth != null && auth.uid === $uid && !newData.exists()" }
+      }
+    },
+    "matchFound": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid && !newData.exists()"
+      }
+    },
+    "userRooms": {
+      "$uid": { ".read": "auth != null && auth.uid === $uid" }
+    },
+    "dms": {
+      "$chat": {
+        ".read": "auth != null && root.child('dmAllowed').child($chat).child(auth.uid).exists()",
+        "$id": {
+          ".write": "auth != null && !data.exists() && root.child('dmAllowed').child($chat).child(auth.uid).exists()",
+          ".validate": "newData.child('uid').val() === auth.uid && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 300"
+        }
+      }
+    }
+  }
+}

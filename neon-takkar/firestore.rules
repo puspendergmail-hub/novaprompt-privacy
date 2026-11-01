@@ -1,0 +1,18 @@
+rules_version = '2';
+// All writes go through Cloud Functions (Admin SDK bypasses these rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read: if request.auth != null;          // public profile: name, level, avatar, stats
+      allow write: if false;
+      match /friends/{friendUid} { allow read: if request.auth != null && request.auth.uid == uid; allow write: if false; }
+      match /recent/{otherUid}   { allow read: if request.auth != null && request.auth.uid == uid; allow write: if false; }
+      match /private/{doc}       { allow read: if request.auth != null && request.auth.uid == uid; allow write: if false; }
+    }
+    match /friendRequests/{id} {
+      allow read: if request.auth != null && (resource.data.to == request.auth.uid || resource.data.from == request.auth.uid);
+      allow write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">NEON TAKKAR</string>
+    <string name="title_activity_main">NEON TAKKAR</string>
+    <string name="package_name">com.neontakkar.game</string>
+    <string name="custom_url_scheme">com.neontakkar.game</string>
+</resources>
