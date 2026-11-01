@@ -1,3 +1,4 @@
+import { applyCSP } from './core/csp.js';
 /** NEON TAKKAR — app bootstrap. */
 import { store } from './core/store.js';
 import { initRouter, go } from './core/router.js';
@@ -57,6 +58,7 @@ function setupOnlineListeners() {
 }
 
 async function boot() {
+  applyCSP();
   applySettings(store.get());
   unlockAudioOnGesture();
   await loadCharacterImages().catch(() => {});

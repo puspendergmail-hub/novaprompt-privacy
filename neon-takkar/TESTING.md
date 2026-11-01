@@ -34,7 +34,7 @@ Date: 1 November 2026 · Scope: the game client (`www/`), Cloud Functions (`func
 - **Callable rate limits:** friend requests (30/h), room creation (30/h), joins (60/h), invites (60/h), reports (10/h).
 - **Anti-farming:** matches shorter than 60 s give no coins, which stops two accounts trading instant wins.
 - **One open lobby per host:** creating a new room closes the host's previous lobby.
-- **Content-Security-Policy:** only the app's own scripts plus Google's Firebase SDK can run, and `object-src` is `none`.
+- **Content-Security-Policy**, applied at app start so it doesn't block the inline bridge script Capacitor injects on Android: only the app's own scripts plus Google's Firebase SDK can run, injected inline handlers are blocked (verified in a browser test), and `object-src` is `none`.
 - **No referrer leakage**, fonts bundled (no third-party requests), no analytics or trackers.
 
 ## What the attack tests cover (`tests/emulator/security.mjs`)
