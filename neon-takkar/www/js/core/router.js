@@ -21,6 +21,7 @@ const loaders = {
   friends: () => import('../screens/friends.js'),
   room: () => import('../screens/room.js'),
   tournament: () => import('../screens/tournament.js'),
+  snake: () => import('../screens/snake.js'),
 };
 
 let current = null; // {name, params, cleanup, canLeave}

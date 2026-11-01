@@ -6,6 +6,7 @@ import { topbar } from '../core/ui.js';
 import { SOUNDS, SOUND_CATEGORIES, EVENTS, playSound, soundFor, applyVolumes, forgetDecoded } from '../core/audio.js';
 import { idbSet, idbDel } from '../core/idb.js';
 import { cleanName } from '../engine/moderation.js';
+import { DIALOGUES, DIALOGUE_CATEGORIES, previewLine } from '../core/dialogues.js';
 
 const MAX_BYTES = 1.5 * 1024 * 1024;
 const MAX_SECONDS = 8;
@@ -32,6 +33,7 @@ export default {
       root.innerHTML = `${topbar('😆 MEME STUDIO')}
         <div class="tabs">
           <button class="tab ${tab === 'sounds' ? 'active' : ''}" data-action="tab" data-v="sounds">Sounds</button>
+          <button class="tab ${tab === 'dialogues' ? 'active' : ''}" data-action="tab" data-v="dialogues">🎬 Dialogues</button>
           <button class="tab ${tab === 'events' ? 'active' : ''}" data-action="tab" data-v="events">Assign to Events</button>
           <button class="tab ${tab === 'volume' ? 'active' : ''}" data-action="tab" data-v="volume">Volume</button>
         </div>
@@ -59,6 +61,13 @@ export default {
             <button class="btn sm primary" data-action="pickFor" data-ev="${e.id}">Change</button>
           </div>`).join('')}
           <button class="btn ghost block" data-action="restore" style="margin-top:8px">↺ Restore Default Sounds</button>
+        ` : ''}
+        ${tab === 'dialogues' ? `
+          <div class="glass card row between"><div><b>🎬 Filmy dialogues</b><div class="small muted">Funny lines on game start, wins, losses, shop & map — with voice</div></div>
+            <label class="switch"><input type="checkbox" data-set="dialogues" ${s.settings.dialogues !== false ? 'checked' : ''}><i></i></label></div>
+          ${DIALOGUE_CATEGORIES.map((c) => `<div class="section-title">${c.icon} ${esc(c.name)}</div>
+            ${DIALOGUES[c.id].map((d, i) => `<div class="sound-row"><button class="play-btn" data-action="line" data-cat="${c.id}" data-i="${i}" aria-label="Play">▶</button><div class="grow small" style="font-style:italic">"${esc(d.text)}"</div></div>`).join('')}`).join('')}
+          <p class="small muted center">Original lines written for NEON TAKKAR. Voice uses your phone's Hindi text-to-speech (install "Google Text-to-Speech" Hindi voice for best results).</p>
         ` : ''}
         ${tab === 'volume' ? `<div class="glass card">
           <div class="row between"><b>🔊 Sound effects</b><label class="switch"><input type="checkbox" data-set="sfx" ${s.settings.sfx ? 'checked' : ''}><i></i></label></div>
@@ -104,6 +113,7 @@ export default {
       tab: (b) => { tab = b.dataset.v; draw(); },
       cat: (b) => { cat = b.dataset.v; draw(); },
       play: (b) => playSound(b.dataset.id),
+      line: (b) => previewLine(b.dataset.cat, Number(b.dataset.i)),
       pickFor: (b) => { pickingFor = b.dataset.ev; tab = 'sounds'; draw(); },
       cancelPick: () => { pickingFor = null; draw(); },
       useIn: async (b) => {

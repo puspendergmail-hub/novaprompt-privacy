@@ -35,6 +35,7 @@ export default {
         <div class="glass card small">
           <div class="row between"><span>🎲 Ludo</span><span>${s.stats.ludo.won}W / ${s.stats.ludo.lost}L · ${s.stats.ludo.captures} cuts · ${s.stats.ludo.sixes} sixes</span></div>
           <div class="row between" style="margin-top:4px"><span>♛ Chess</span><span>${s.stats.chess.won}W / ${s.stats.chess.lost}L / ${s.stats.chess.draw}D</span></div>
+          <div class="row between" style="margin-top:4px"><span>🐍 Snake</span><span>Best ${s.stats.snake.best.classic} / 🌀 ${s.stats.snake.best.portal} · ${s.stats.snake.played} runs</span></div>
           ${s.onlineStats ? `<div class="row between" style="margin-top:4px"><span>🌐 Online</span><span>${s.onlineStats.wins || 0}W / ${s.onlineStats.played || 0} played</span></div>` : ''}
         </div>
         <div class="section-title">My Achievements</div>
@@ -42,8 +43,8 @@ export default {
         <button class="btn primary block" data-action="edit" style="margin-top:14px">✏️ Edit Profile</button>
         <div class="section-title">Match History</div>
         ${s.history.length ? s.history.slice(0, 25).map((h) => `<div class="list-item">
-          <div style="font-size:26px">${h.game === 'chess' ? '♛' : '🎲'}</div>
-          <div class="grow"><div class="title">${h.result === 'win' ? '<span style="color:var(--green)">Victory</span>' : h.result === 'draw' ? 'Draw' : '<span style="color:var(--red)">Defeat</span>'} · ${esc(h.mode)}${h.ai ? ` (${h.ai})` : ''}</div>
+          <div style="font-size:26px">${h.game === 'chess' ? '♛' : h.game === 'snake' ? '🐍' : '🎲'}</div>
+          <div class="grow"><div class="title">${h.game === 'snake' ? `Snake score <b style="color:var(--gold)">${h.score ?? 0}</b>${h.result === 'win' ? ' · <span style="color:var(--green)">New best!</span>' : ''}` : h.result === 'win' ? '<span style="color:var(--green)">Victory</span>' : h.result === 'draw' ? 'Draw' : '<span style="color:var(--red)">Defeat</span>'} · ${esc(h.mode)}${h.ai ? ` (${h.ai})` : ''}</div>
           <div class="small muted ellipsis">vs ${esc((h.opponents || []).join(', ') || '—')} · ${timeAgo(h.at)}</div></div>
           <div class="small">${h.coins ? `🪙+${fmt(h.coins)}` : ''}</div></div>`).join('') : '<div class="empty glass">No matches yet — go play!</div>'}`;
     };

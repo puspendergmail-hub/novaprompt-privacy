@@ -6,6 +6,7 @@ import { topbar, itemPriceHTML, walletHTML } from '../core/ui.js';
 import { CATEGORIES, ITEMS, ITEM } from '../core/catalog.js';
 import { purchase, equipItem } from '../core/economy.js';
 import { playSound } from '../core/audio.js';
+import { sayDialogue } from '../core/dialogues.js';
 import { PIECE_NAMES } from './chessGame.js';
 
 const TABS = ['Skins', 'Themes', 'Effects', 'Sounds', 'Frames', 'Characters'];
@@ -32,6 +33,7 @@ export default {
         <div class="glass card small muted" style="margin-top:14px">💡 Everything here is cosmetic — no item changes dice, AI or match results. Earn coins from daily rewards, missions, achievements and winning matches; diamonds from level-ups, streaks and achievements.</div>`;
     };
     draw();
+    sayDialogue('shop', { chance: 0.5, delay: 500 });
     const off = store.on(() => draw());
     const unbind = bindActions(root, {
       ...commonActions,
@@ -55,7 +57,7 @@ export default {
           await equipItem(it.id);
           playSound('tada');
           toast(`Unlocked ${it.name}!${r.achievements?.length ? ` 🏅 ${r.achievements[0].name}` : ''}`, 'success');
-        } catch (e) { toast(e.message, 'error'); }
+        } catch (e) { toast(e.message, 'error'); if (/Not enough/.test(e.message)) sayDialogue('shop', { force: true }); }
       },
     });
     return () => { off(); unbind(); };

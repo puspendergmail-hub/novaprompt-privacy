@@ -38,6 +38,7 @@ function defaults() {
     stats: {
       ludo: { played: 0, won: 0, lost: 0, captures: 0, sixes: 0 },
       chess: { played: 0, won: 0, lost: 0, draw: 0, captures: 0 },
+      snake: { played: 0, food: 0, best: { classic: 0, portal: 0 } },
     },
     history: [],
     achievements: {},
@@ -52,7 +53,7 @@ function defaults() {
     sounds: { assign: {}, custom: [] },
     settings: {
       music: true, sfx: true, musicVol: 0.35, sfxVol: 0.8, vibration: true,
-      lang: 'en', gfx: 'high', speech: true,
+      lang: 'en', gfx: 'high', speech: true, dialogues: true,
     },
     daily: { last: null, streak: 0 },
     missions: { date: null, list: [], progress: {}, claimed: {} },
@@ -253,6 +254,7 @@ function achievementMet(s, id) {
     case 'streak_7': return s.daily.streak >= 7;
     case 'level_5': return s.level >= 5;
     case 'champion': return !!s.tournament?.champion;
+    case 'snake_master': return Math.max(s.stats.snake?.best?.classic || 0, s.stats.snake?.best?.portal || 0) >= 30;
     case 'social': return s.history.some((h) => h.mode === 'online-friends');
     default: return false;
   }
@@ -324,6 +326,29 @@ export function recordMatch(m) {
   if (m.game === 'ludo') bumpMission('play_ludo');
   if (m.game === 'chess') bumpMission('play_chess');
   if (m.result === 'win') bumpMission('win_any');
+  return out;
+}
+
+/**
+ * Record a finished Snake run. Returns rewards + whether it's a new best.
+ * @param {{score:number, food:number, mode:'classic'|'portal', level:string, rewards:{coins:number,xp:number}}} r
+ */
+export function recordSnake({ score, food, mode, level, rewards }) {
+  const out = { coins: rewards.coins, xp: rewards.xp, levelUps: [], achievements: [], newBest: false };
+  store.update((s) => {
+    const st = s.stats.snake;
+    st.played += 1;
+    st.food += food;
+    if (score > (st.best[mode] || 0)) { st.best[mode] = score; out.newBest = score > 0; }
+    s.coins += out.coins;
+    addXp(s, out.xp, out);
+    queueOffline(s, { kind: 'match', game: 'snake', mode, coins: out.coins, xp: out.xp });
+    s.history.unshift({ id: randomId(6), at: Date.now(), game: 'snake', mode: `${mode} · ${level}`, result: out.newBest ? 'win' : 'loss', score, opponents: [], coins: out.coins, xp: out.xp });
+    s.history = s.history.slice(0, 60);
+    checkAchievements(s, out);
+  });
+  bumpMission('snake_play');
+  if (food) bumpMission('snake_food', food);
   return out;
 }
 

@@ -9,6 +9,7 @@ import { sticker, resultOverlay } from '../core/ui.js';
 import { playEvent, playSound, vibrate } from '../core/audio.js';
 import { avatarHTML } from '../core/sprites.js';
 import { rewardsFor } from '../engine/room.js';
+import { sayDialogue } from '../core/dialogues.js';
 
 const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const VS = '︎'; // force text (non-emoji) presentation
@@ -62,6 +63,7 @@ export default {
     let started = false;
     let room = null; let net = null; let serverOffset = 0; let flagSentFor = null;
     let captures = 0;
+    let lowTalked = false;
     const recorded = new Set();
 
     const names = () => {
@@ -163,6 +165,8 @@ export default {
         if (e.type === 'capture') {
           if (byMe) { captures++; bumpMission('chess_captures'); }
           playEvent('chessCapture');
+          const myPiece = mode === 'local' || C.colorOf(e.piece) === mySide;
+          if (!lowTalked && myPiece && ['q', 'r'].includes(e.piece.toLowerCase())) { lowTalked = true; sayDialogue('lowHealth', { chance: 0.8, delay: 600 }); }
           if (byMe || mode === 'local') burst(['😎 OYE!', '💥 KHATAM!', '😂 GAYA!'][Math.floor(Math.random() * 3)], { y: 40 });
         } else if (e.type === 'promotion') { burst('👑 PROMOTED!', { y: 44, cls: 'gold' }); playSound('kya_baat'); }
         else if (e.type === 'castle') playSound('whoosh');
@@ -222,6 +226,7 @@ export default {
       const win = winner === me;
       const result = draw ? 'draw' : win ? 'win' : 'loss';
       playEvent(win || (mode === 'local' && !draw) ? 'victory' : draw ? 'move' : 'defeat');
+      sayDialogue(win || (mode === 'local' && !draw) ? 'win' : 'lose', { force: true, delay: 1200 });
       const rec = recordMatch({ game: 'chess', mode: mode === 'tournament' ? 'tournament' : mode, result, ai: mode === 'local' ? null : params.ai, captures, opponents: [mode === 'local' ? names().b : 'Computer'] });
       const why = reason || st?.reason || '';
       if (mode === 'tournament') {
@@ -296,6 +301,7 @@ export default {
           return;
         }
       }
+      if (left < 20000 && !lowTalked && game.turn === mySide && mode !== 'local') { lowTalked = true; sayDialogue('lowHealth', { force: true }); }
       const el = boardEl.parentElement.querySelector(`[data-clock="${game.turn}"]`);
       if (el) { el.textContent = fmtClock(left); el.classList.toggle('low', left < 20000); }
     }, 250);
@@ -328,6 +334,7 @@ export default {
         const win = r.result?.winnerUid === uid;
         const draw = !!r.result?.draw;
         playEvent(win ? 'victory' : draw ? 'move' : 'defeat');
+        sayDialogue(win ? 'win' : 'lose', { force: true, delay: 1200 });
         const rec = recordMatch({ game: 'chess', mode: r.friends ? 'online-friends' : 'online', result: draw ? 'draw' : win ? 'win' : 'loss', captures, serverRewarded: true,
           opponents: Object.values(r.players).filter((p) => p.color !== mySide).map((p) => p.name) });
         const v = await resultOverlay({
@@ -381,11 +388,13 @@ export default {
       await net.requireUser();
       offs.push(net.serverTimeOffset((o) => { serverOffset = o; }));
       offs.push(net.watchRoom(params.code, onRoom));
+      sayDialogue('start', { force: true, delay: 600 });
       offs.push(net.watchReactions(params.code, (rx) => { playSound(rx.sound); burst(rx.emoji, { y: 45, big: true }); }));
       let was = true;
       offs.push(net.watchConnection((c) => { if (!c && was) toast('📴 Reconnecting…', 'error', 4000); if (c && !was) toast('✅ Reconnected', 'success'); was = c; }));
     } else {
       render();
+      sayDialogue(params.ai === 'hard' && mode !== 'local' ? 'boss' : 'start', { force: true, delay: 400 });
       maybeAI();
     }
 

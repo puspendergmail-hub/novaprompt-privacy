@@ -7,6 +7,7 @@ import { go, commonActions } from '../core/router.js';
 import { bindActions, esc, $, toast } from '../core/dom.js';
 import { MAP_LOCATIONS } from '../core/catalog.js';
 import { playSound } from '../core/audio.js';
+import { sayDialogue } from '../core/dialogues.js';
 
 const W = 1000;
 const DESC = {
@@ -176,6 +177,7 @@ export default {
       if (!l || moved > 8) return;
       const loc = MAP_LOCATIONS.find((x) => x.id === l.dataset.loc);
       playSound('whoosh');
+      sayDialogue('npc', { chance: 0.7, delay: 500 });
       flyTo(loc.x * 10, loc.y * 10 - 40, 1.3);
       const locked = store.get().level < loc.level;
       $('#card', root).innerHTML = `<div class="map-card glass">

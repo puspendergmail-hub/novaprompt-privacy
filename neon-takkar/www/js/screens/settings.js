@@ -48,6 +48,7 @@ export default {
         ${toggle('sfx', 'Sound effects', '🔊')}
         <div class="list-item"><div class="grow"><input type="range" min="0" max="1" step="0.05" data-vol="sfxVol" value="${s.settings.sfxVol}"></div></div>
         ${toggle('speech', 'Voice catch-phrases', '🗣️')}
+        ${toggle('dialogues', 'Filmy dialogues', '🎬')}
         ${toggle('vibration', 'Vibration', '📳')}
         <div class="section-title">Display</div>
         <div class="list-item"><span style="font-size:20px">🌐</span><div class="grow title">Language</div>

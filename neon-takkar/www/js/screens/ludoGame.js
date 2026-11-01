@@ -13,6 +13,7 @@ import { gotiSprite, gotiConfigFor, avatarHTML } from '../core/sprites.js';
 import { playEvent, playSound, vibrate } from '../core/audio.js';
 import { ITEM } from '../core/catalog.js';
 import { rewardsFor } from '../engine/room.js';
+import { sayDialogue } from '../core/dialogues.js';
 
 // window.__speed lets automated UI tests fast-forward animations.
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms * (window.__speed ?? 1)));
@@ -242,6 +243,7 @@ export default {
           case 'capture': {
             if (isMe(e.by)) { stats.captures++; bumpMission('captures'); }
             playEvent(isMe(e.victim) ? 'captured' : 'capture');
+            if (isMe(e.victim) && e.lostProgress > 12) sayDialogue('lowHealth', { chance: 0.6, delay: 900 });
             const p1 = cardPos(e.by), p2 = cardPos(e.victim);
             sticker(['😂', '🤣', '😎', '😜'][Math.floor(Math.random() * 4)], ['KAAT DIYA!', 'GAYA BETA!', 'OYE HOYE!', 'BHAI BOLTI PUBLIC'][Math.floor(Math.random() * 4)], { x: p1.x, y: Math.min(p1.y + 10, 60) });
             setTimeout(() => sticker('😭', ['RONA MAT!', 'ARRE NAHI!', 'BAS KAR PAGLE'][Math.floor(Math.random() * 3)], { sad: true, x: p2.x, y: Math.max(p2.y - 6, 30) }), 500);
@@ -330,6 +332,7 @@ export default {
       const win = winner === myColor;
       const wName = playerMeta(winner).name;
       playEvent(win || mode === 'local' ? 'victory' : 'defeat');
+      sayDialogue(win || mode === 'local' ? 'win' : 'lose', { force: true, delay: 1200 });
       if (!win && mode !== 'local') sticker('😭', 'AGLI BAAR PAKKA!', { sad: true });
       const result = win ? 'win' : 'loss';
       const rec = recordMatch({
@@ -374,6 +377,7 @@ export default {
         game = next;
         await buildSprites(game.players);
         render();
+        sayDialogue('start', { force: true, delay: 400 });
       } else {
         const evs = r.lastEvents?.seq > lastSeq ? (r.lastEvents.list || []) : [];
         await animating;
@@ -399,6 +403,7 @@ export default {
         const uid = net.currentUser().uid;
         const win = r.result?.winnerUid === uid;
         playEvent(win ? 'victory' : 'defeat');
+        sayDialogue(win ? 'win' : 'lose', { force: true, delay: 1200 });
         const rw = rewardsFor(r.result, uid, 'ludo');
         const rec = recordMatch({ game: 'ludo', mode: r.friends ? 'online-friends' : 'online', result: win ? 'win' : 'loss', captures: stats.captures, sixes: stats.sixes, serverRewarded: true,
           opponents: Object.values(r.players).filter((p) => p.color !== me).map((p) => p.name) });
@@ -486,6 +491,7 @@ export default {
       await buildSprites(params.players);
       render();
       log(`${playerMeta(L.currentPlayer(game).color).name} starts. Roll a 6 to unlock!`);
+      sayDialogue(params.ai === 'hard' && mode !== 'local' ? 'boss' : 'start', { force: true, delay: 400 });
       localLoop();
     }
 

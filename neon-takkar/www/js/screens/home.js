@@ -5,6 +5,7 @@ import { hudHTML } from '../core/ui.js';
 import { t } from '../core/i18n.js';
 import { playSound } from '../core/audio.js';
 import * as online from '../net/online.js';
+import { sayDialogue } from '../core/dialogues.js';
 
 export async function claimDaily() {
   const s = store.get();
@@ -29,7 +30,7 @@ export default {
           <button class="icon-btn" data-action="go" data-route="rewards" aria-label="Missions">🔔${missionReady || d.canClaim ? `<span class="dot">${missionReady + (d.canClaim ? 1 : 0)}</span>` : ''}</button>
           <button class="icon-btn" data-action="go" data-route="settings" aria-label="Settings">⚙️</button>
         </div>
-        <div class="hero" style="margin-top:-52px">
+        <div class="hero" style="margin-top:-52px" data-action="npc">
           <img class="art" src="assets/hero.webp" alt="">
           <div class="logo"><span class="crown">👑</span><span class="l1">NEON</span><span class="l2">TAKKAR</span><div class="tag">${t('tagline')}</div></div>
         </div>
@@ -38,6 +39,11 @@ export default {
             <div class="art">🎲</div><h3>MEME<br>LUDO</h3><div class="play">${t('playNow')} ›</div></div>
           <div class="game-card chess" data-action="go" data-route="chess-setup">
             <div class="art">♛</div><h3>NEON<br>CHESS</h3><div class="play">${t('playNow')} ›</div></div>
+        </div>
+        <div class="snake-card glass" data-action="go" data-route="snake">
+          <span class="art">🐍</span>
+          <div class="grow"><h3>NEON SNAKE</h3><div class="small">Khao • Badho • Bacho — Best ${store.get().stats.snake.best.classic || 0}</div></div>
+          <span class="play">${t('playNow')} ›</span>
         </div>
         <div class="quick-grid">
           <div class="quick glass" data-action="go" data-route="friends"><span class="ic">👥</span>${t('playFriends')}</div>
@@ -64,6 +70,7 @@ export default {
     const off = store.on(() => draw());
     const unbind = bindActions(root, {
       ...commonActions,
+      npc: () => sayDialogue('npc', { force: true }),
       daily: async (b) => {
         b.disabled = true;
         try {

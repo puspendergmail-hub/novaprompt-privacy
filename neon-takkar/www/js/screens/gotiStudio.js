@@ -7,6 +7,7 @@ import { byCat, ITEM, CUSTOM_COLORS, GOTI_COLORS } from '../core/catalog.js';
 import { gotiSprite, gotiConfigFor, characterImage } from '../core/sprites.js';
 import { purchase, equipItem } from '../core/economy.js';
 import { playSound } from '../core/audio.js';
+import { sayDialogue } from '../core/dialogues.js';
 
 const TABS = [
   { id: 'color', name: 'Colour' }, { id: 'skin', name: 'Face' }, { id: 'goti_hat', name: 'Hat' },
@@ -86,7 +87,7 @@ export default {
           playSound('tada');
           toast(`Unlocked ${it.name}!${r.achievements?.length ? ` 🏅 ${r.achievements[0].name}` : ''}`, 'success');
           draw();
-        } catch (e) { toast(e.message, 'error'); }
+        } catch (e) { toast(e.message, 'error'); if (/Not enough/.test(e.message)) sayDialogue('shop', { force: true }); }
       },
       apply: () => { toast('Goti design applied! 🎲', 'success'); playSound('kya_baat'); go('home'); },
     });

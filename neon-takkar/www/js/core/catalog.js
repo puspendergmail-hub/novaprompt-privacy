@@ -135,6 +135,7 @@ export const ACHIEVEMENTS = [
   { id: 'streak_7', name: 'Roz Ka Player', desc: '7-day login streak', icon: '📅', reward: { diamonds: 15 } },
   { id: 'level_5', name: 'Rising Star', desc: 'Reach level 5', icon: '⭐', reward: { diamonds: 10 } },
   { id: 'champion', name: 'Tournament Champion', desc: 'Win a Tournament Stadium cup', icon: '🥇', reward: { coins: 1000, diamonds: 20 } },
+  { id: 'snake_master', name: 'Naagin Master', desc: 'Score 30 in one Snake run', icon: '🐍', reward: { coins: 400, diamonds: 5 } },
   { id: 'social', name: 'Yaaron Ka Yaar', desc: 'Play an online match with a friend', icon: '🤝', reward: { coins: 300 } },
 ];
 
@@ -146,6 +147,8 @@ export const MISSION_POOL = [
   { id: 'sixes', name: 'Roll 5 sixes', target: 5, reward: { coins: 100 } },
   { id: 'reactions', name: 'Send 3 meme reactions', target: 3, reward: { coins: 100 } },
   { id: 'chess_captures', name: 'Capture 5 chess pieces', target: 5, reward: { coins: 150 } },
+  { id: 'snake_play', name: 'Play 2 Snake games', target: 2, reward: { coins: 120 } },
+  { id: 'snake_food', name: 'Eat 25 snacks in Snake', target: 25, reward: { coins: 150 } },
 ];
 
 /** Map locations; `level` = player level required to unlock. */
@@ -155,5 +158,6 @@ export const MAP_LOCATIONS = [
   { id: 'meme', name: 'Meme Park', sub: 'Meme Events', icon: '😂', route: 'sound-studio', level: 1, x: 22, y: 26 },
   { id: 'studio', name: 'Character Studio', sub: 'Customise', icon: '🎨', route: 'character-studio', level: 1, x: 52, y: 44 },
   { id: 'island', name: 'Reward Island', sub: 'Daily Rewards', icon: '🎁', route: 'rewards', level: 1, x: 78, y: 78 },
+  { id: 'snake', name: 'Snake Gali', sub: 'Neon Snake', icon: '🐍', route: 'snake', level: 1, x: 84, y: 54 },
   { id: 'stadium', name: 'Tournament Stadium', sub: 'Competitive Cups', icon: '🏟️', route: 'tournament', level: 3, x: 56, y: 82 },
 ];
