@@ -96,8 +96,8 @@ function persist() {
   }, 60);
 }
 
-/** True when the player has a real (Google or email) account, not a guest. */
-export const isAccount = (s = state) => s.account.mode === 'google' || s.account.mode === 'email';
+/** True when the player has signed up with Gmail (Google), not a guest. */
+export const isAccount = (s = state) => s.account.mode === 'google';
 
 /** Summary of local guest progress, imported (with caps) into a new account. */
 export function guestSummary() {

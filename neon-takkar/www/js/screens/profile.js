@@ -1,6 +1,6 @@
 /** Player profile: avatar, name, ID, level, stats, achievements, match history. */
 import { store, xpForLevel, winRate, isAccount } from '../core/store.js';
-import { openAccountDialog } from '../core/accountUI.js';
+import { signUpWithGmail } from '../core/accountUI.js';
 import { commonActions } from '../core/router.js';
 import { bindActions, toast, promptBox, modal, esc, timeAgo, fmt } from '../core/dom.js';
 import { topbar } from '../core/ui.js';
@@ -24,8 +24,8 @@ export default {
           <div style="font-size:22px;font-weight:800">${esc(s.name)} ${isAccount(s) ? '<span class="verified">✔</span>' : ''}</div>
           <div class="small muted" data-action="copyId" style="cursor:pointer">ID: <b>${esc(s.playerId)}</b> 📋</div>
           <div class="row" style="margin:8px 20px"><b style="color:var(--gold)">Lv.${s.level}</b><div class="xpbar grow"><b style="width:${(s.xp / need) * 100}%"></b><span>${s.xp}/${need}</span></div></div>
-          <div class="small muted">${s.account.mode === 'google' ? `🔗 Google: ${esc(s.account.email || '')}` : isAccount(s) ? `📧 ${esc(s.account.email || '')}` : '👤 Guest account (saved on this phone)'}</div>
-          ${isAccount(s) ? '' : '<button class="btn sm gold" data-action="createAccount" style="margin-top:8px">📝 Create Account — save progress</button>'}
+          <div class="small muted">${isAccount(s) ? `🔗 Gmail: ${esc(s.account.email || '')}` : '👤 Guest (saved on this phone)'}</div>
+          ${isAccount(s) ? '' : '<button class="btn sm google-btn" data-action="createAccount" style="margin-top:8px"><span class="g">G</span> Sign up with Gmail — save progress</button>'}
         </div>
         <div class="grid3">
           <div class="glass card center"><div style="font-size:22px">🏆</div><b style="font-size:22px">${wins}</b><div class="small muted">Wins</div></div>
@@ -75,7 +75,7 @@ export default {
       ...commonActions,
       copyId: () => { navigator.clipboard?.writeText(store.get().playerId).then(() => toast('Player ID copied!', 'success')).catch(() => toast(store.get().playerId)); },
       avatar: pickAvatar,
-      createAccount: () => openAccountDialog('create'),
+      createAccount: () => signUpWithGmail(),
       edit: async () => {
         const v = await modal({ title: 'Edit Profile', body: '', buttons: [{ label: '✏️ Change name', value: 'name', kind: 'primary' }, { label: '😎 Change avatar', value: 'avatar', kind: 'blue' }, { label: '🖼️ Frame', value: 'frame' }] });
         if (v === 'name') {

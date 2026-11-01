@@ -10,6 +10,7 @@ import { avatarHTML } from '../core/sprites.js';
 import { reportPlayer, blockPlayer, isBlocked } from '../core/social.js';
 import { cleanText } from '../engine/moderation.js';
 import { isValidRoomCode } from '../engine/room.js';
+import { signUpWithGmail } from '../core/accountUI.js';
 import * as online from '../net/online.js';
 
 function offlineHTML() {
@@ -189,7 +190,7 @@ export default {
         const colors = n === 2 ? ['red', 'yellow'] : ['red', 'green', 'yellow', 'blue'];
         go('ludo', { mode: 'local', players: colors.map((c, i) => ({ name: i === 0 ? store.get().name : `Player ${i + 1}`, color: c, type: 'human', me: i === 0 })) });
       },
-      google: async () => { try { await online.signInGoogle(); } catch (e) { toast(e.message, 'error'); } },
+      google: () => signUpWithGmail(),
       anon: async () => { try { await online.signInGuestOnline(); } catch (e) { toast(e.message, 'error'); } },
       copyId: () => {
         const id = store.get().playerId;

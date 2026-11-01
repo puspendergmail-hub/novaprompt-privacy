@@ -60,7 +60,7 @@ async function handleUser(u) {
     store.update((s) => {
       s.account.uid = user.uid;
       if (!user.anonymous) {
-        s.account.mode = user.providers.includes('google.com') ? 'google' : 'email';
+        s.account.mode = 'google';
         s.account.email = user.email;
         s.account.photo = user.photo;
       }
@@ -101,63 +101,6 @@ export async function signInGoogle() {
     try { return await linkWithPopup(anon, provider); } catch { /* fall through */ }
   }
   return signInWithPopup(f.auth, provider);
-}
-
-const AUTH_ERRORS = {
-  'auth/email-already-in-use': 'This email already has an account — use Login instead',
-  'auth/invalid-email': 'Please enter a valid email address',
-  'auth/weak-password': 'Password must be at least 6 characters',
-  'auth/invalid-credential': 'Wrong email or password',
-  'auth/wrong-password': 'Wrong email or password',
-  'auth/user-not-found': 'No account with this email — create one first',
-  'auth/too-many-requests': 'Too many attempts — try again in a few minutes',
-  'auth/network-request-failed': 'No internet connection',
-  'auth/credential-already-in-use': 'This email already has an account — use Login instead',
-  'auth/operation-not-allowed': 'Email accounts are not enabled in Firebase yet (see README)',
-};
-const friendly = (e) => new Error(AUTH_ERRORS[e?.code] || e?.message || 'Something went wrong');
-
-/**
- * Create an email/password account. If the player is currently an anonymous
- * online guest, the guest account is upgraded (same uid) instead.
- * `importGuest` copies local guest progress into the new account (server-capped).
- */
-export async function createEmailAccount({ email, password, name, importGuest = true }) {
-  const f = await init();
-  if (!f) throw new Error('Online features are not configured');
-  const { EmailAuthProvider, linkWithCredential, createUserWithEmailAndPassword, updateProfile } = f.m;
-  store.update((s) => { s.account.importGuest = importGuest; });
-  try {
-    const anon = f.auth.currentUser?.isAnonymous ? f.auth.currentUser : null;
-    const cred = anon
-      ? await linkWithCredential(anon, EmailAuthProvider.credential(email, password))
-      : await createUserWithEmailAndPassword(f.auth, email, password);
-    if (name) await updateProfile(cred.user, { displayName: name }).catch(() => {});
-    if (anon) { await cred.user.reload(); await handleUser(f.auth.currentUser); }
-    return cred.user;
-  } catch (e) {
-    store.update((s) => { s.account.importGuest = false; });
-    throw friendly(e);
-  }
-}
-
-export async function signInEmail({ email, password, importGuest = false }) {
-  const f = await init();
-  if (!f) throw new Error('Online features are not configured');
-  store.update((s) => { s.account.importGuest = importGuest; });
-  try {
-    const r = await f.m.signInWithEmailAndPassword(f.auth, email, password);
-    return r.user;
-  } catch (e) {
-    store.update((s) => { s.account.importGuest = false; });
-    throw friendly(e);
-  }
-}
-
-export async function resetPassword(email) {
-  const f = await init();
-  if (!f) throw new Error('Online features are not configured');
-  try { await f.m.sendPasswordResetEmail(f.auth, email); } catch (e) { throw friendly(e); }
 }
 
 /** Anonymous Firebase account so guests can join online rooms. */

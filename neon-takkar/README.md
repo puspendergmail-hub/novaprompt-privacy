@@ -25,7 +25,7 @@ Offline play works with no login and no internet. Online play (Google Sign-In, p
 | Rewards | ✅ | 7-day login calendar with streaks, 3 daily missions, 11 achievements, level-up bonuses |
 | **World Map** | ✅ | Hand-built SVG neon city (roads, river, bridges, mountains, parks, castle, stadium, island) with pan/pinch/zoom camera, fly-to animation, drifting clouds, shimmering water, glowing beacons, and level-gated locations |
 | Tournament Stadium | ✅ | 3-round knockout cup (Ludo or Chess) vs Easy → Medium → Hard bots |
-| **Accounts** | ✅ code, ⚠️ needs Firebase | Play as a guest, or create an account with email + password (or Google). A guest can create an account any time from Settings or Profile, and their progress (coins, diamonds, level, items) moves into the new account once, with server-side caps. Login, password reset and logout are included |
+| **Sign-in** | ✅ guest, ⚠️ Gmail needs Firebase | **Guest**: just enter a name and play, with progress saved on the phone. **Gmail (Google) sign-up/login**: one tap, and progress is saved to the account. A guest can connect Gmail any time from Settings or Profile, and their progress (coins, diamonds, level, items) moves into the account once, with server-side caps |
 | Profile / Settings | ✅ | Stats, achievements, history, name/avatar/frame edit, Player ID; music/SFX/voice/vibration, volumes, English/Hindi, graphics quality, blocked list, logout, delete account |
 | **Online multiplayer** | ✅ code, ⚠️ needs your Firebase project | Private rooms with codes, WhatsApp share, friend invites, quick match, ready/start, host settings (mode, board theme, sound pack, clock), presence, reconnection, turn timers, room chat, reactions |
 | Social | ✅ code, ⚠️ needs Firebase | Friends by Player ID, requests, online status, recent players, DMs, block and report, chat filter (client + server) |
@@ -107,7 +107,7 @@ After changing anything in `www/`, run `npx cap sync android` again. To regenera
 ## Firebase setup (online play)
 
 1. **Create a project** at <https://console.firebase.google.com> and upgrade to the **Blaze** plan (Cloud Functions requires it; light usage is free-tier).
-2. **Authentication**: enable the **Email/Password**, **Google** and **Anonymous** providers.
+2. **Authentication**: enable the **Google** and **Anonymous** providers. Gmail is the only sign-up method; Anonymous is used internally so guests can join online rooms.
 3. **Firestore**: create a database in production mode.
 4. **Realtime Database**: create one, e.g. in `asia-southeast1`. If you pick another region, set `RTDB_REGION` when deploying functions.
 5. **Web app**: in *Project settings → Your apps → Add web app*, copy the config into `www/js/firebase-config.js`:
