@@ -1,0 +1,26 @@
+{
+  "name": "neon-takkar",
+  "version": "1.0.0",
+  "description": "NEON TAKKAR \u2014 Premium Indian Meme Ludo & Chess multiplayer game",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node scripts/sync-shared.js && node --test tests/*.test.js",
+    "sync-shared": "node scripts/sync-shared.js",
+    "android:add": "npx cap add android",
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
+    "@capacitor/haptics": "^7.0.1",
+    "@capacitor/share": "^7.0.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.0"
+  },
+  "optionalNotes": "For native Google Sign-In on Android also run: npm i @capacitor-firebase/authentication@^7 (requires android/app/google-services.json). See README."
+}
