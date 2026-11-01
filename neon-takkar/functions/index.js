@@ -8,7 +8,7 @@
  *   (Firestore/RTDB security rules block client writes).
  */
 import { randomInt } from 'node:crypto';
-import { initializeApp } from 'firebase-admin/app';
+import { initializeApp, getApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { getDatabase, ServerValue } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
@@ -18,19 +18,34 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { setGlobalOptions } from 'firebase-functions/v2';
 import { logger } from 'firebase-functions';
 
-import { processIntent, makeRoomCode, isValidRoomCode, rewardsFor } from './shared/room.js';
+import { processIntent, makeRoomCode, isValidRoomCode, rewardsFor, shardIndex } from './shared/room.js';
 import { cleanText, cleanName } from './shared/moderation.js';
 import * as Eco from './lib/economy.js';
 import * as Lobby from './lib/rooms.js';
 
 /** Region for callables. RTDB triggers must use the database's own region. */
 const REGION = 'asia-south1';
-const RTDB_REGION = process.env.RTDB_REGION || 'asia-southeast1';
+// The emulator's database lives in us-central1; production uses the region of your RTDB instance.
+const RTDB_REGION = process.env.RTDB_REGION || (process.env.FUNCTIONS_EMULATOR === 'true' ? 'us-central1' : 'asia-southeast1');
 
 initializeApp();
-setGlobalOptions({ region: REGION, maxInstances: 20 });
+// Sized for ~500k registered players (tens of thousands concurrent). Each v2
+// instance serves up to 80 concurrent requests.
+setGlobalOptions({ region: REGION, maxInstances: 200, concurrency: 80, memory: '512MiB' });
 const fs = getFirestore();
-const rtdb = getDatabase();
+const rtdb = getDatabase(); // default instance: presence, invites, DMs, userRooms
+
+/**
+ * Room sharding for large player counts. Set RTDB_ROOM_SHARD_URLS (functions/.env)
+ * to a comma-separated list of extra RTDB instance URLs and RTDB_ROOMS_INSTANCE to
+ * a matching instance pattern (e.g. "neon-takkar-rooms-*"); list the same URLs, in
+ * the same order, in www/js/firebase-config.js. Empty = everything in the default DB.
+ */
+const ROOM_SHARD_URLS = (process.env.RTDB_ROOM_SHARD_URLS || '').split(',').map((x) => x.trim()).filter(Boolean);
+const roomDbs = ROOM_SHARD_URLS.length ? ROOM_SHARD_URLS.map((url) => getDatabase(getApp(), url)) : [rtdb];
+const roomDb = (code) => roomDbs[shardIndex(code, roomDbs.length)];
+const roomRef = (code, sub = '') => roomDb(code).ref(`rooms/${code}${sub ? `/${sub}` : ''}`);
+const ROOMS_INSTANCE = process.env.RTDB_ROOMS_INSTANCE || undefined;
 
 const rand = () => randomInt(0, 1_000_000) / 1_000_000;
 const userRef = (uid) => fs.doc(`users/${uid}`);
@@ -62,6 +77,23 @@ async function isBlocked(byUid, targetUid) {
 async function areFriends(a, b) {
   return (await fs.doc(`users/${a}/friends/${b}`).get()).exists;
 }
+/**
+ * Fixed-window rate limiter stored in users/{uid}/private/data.rate.
+ * Throws when `max` actions of `key` happen within `windowMs`.
+ */
+async function rateLimit(uid, key, max, windowMs) {
+  const ref = privRef(uid);
+  await fs.runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data() || {};
+    const now = Date.now();
+    const r = d.rate?.[key];
+    const fresh = !r || now - r.start > windowMs;
+    const n = fresh ? 1 : r.n + 1;
+    if (n > max) throw new HttpsError('resource-exhausted', 'Too many requests — please slow down');
+    tx.set(ref, { rate: { [key]: { start: fresh ? now : r.start, n } } }, { merge: true });
+  });
+}
+
 function publicPlayer(p) {
   return { name: p.name, level: p.level || 1, avatar: p.avatar || '😎', frame: p.frame || 'pframe_basic' };
 }
@@ -154,6 +186,7 @@ export const sendFriendRequest = call(async (req) => {
   }
   if (!to || typeof to !== 'string') throw new HttpsError('not-found', 'No player with that ID');
   if (to === uid) throw new HttpsError('invalid-argument', "That's you! 😄");
+  await rateLimit(uid, 'friendReq', 30, 3600_000);
   if (await areFriends(uid, to)) throw new HttpsError('already-exists', 'Already friends');
   if (await isBlocked(to, uid)) throw new HttpsError('permission-denied', 'Cannot send request');
   const target = await userRef(to).get();
@@ -229,17 +262,24 @@ export const reportUser = call(async (req) => {
 async function uniqueCode() {
   for (let i = 0; i < 10; i++) {
     const code = makeRoomCode(rand);
-    if (!(await rtdb.ref(`rooms/${code}/code`).get()).exists()) return code;
+    if (!(await roomRef(code, 'code').get()).exists()) return code;
   }
   throw new HttpsError('internal', 'Could not create room');
 }
 
 export const createRoom = call(async (req) => {
   const uid = authed(req);
+  await rateLimit(uid, 'createRoom', 30, 3600_000);
   const p = await getProfile(uid);
+  // one open lobby per host: close the previous one instead of piling up rooms
+  const prev = (await rtdb.ref(`userRooms/${uid}`).get()).val();
+  if (prev?.code && isValidRoomCode(prev.code)) {
+    const old = (await roomRef(prev.code).get()).val();
+    if (old && old.hostUid === uid && old.status === 'lobby') await roomRef(prev.code).remove();
+  }
   const code = await uniqueCode();
   const room = Lobby.newRoom({ code, game: req.data?.game, hostUid: uid, host: publicPlayer(p), settings: req.data?.settings || {} });
-  await rtdb.ref(`rooms/${code}`).set(room);
+  await roomRef(code).set(room);
   await rtdb.ref(`userRooms/${uid}`).set({ code, at: Date.now() });
   return { code };
 });
@@ -248,7 +288,7 @@ async function roomTx(code, fn) {
   if (!isValidRoomCode(code)) throw new HttpsError('invalid-argument', 'Invalid room code');
   let error = null;
   let result = null;
-  const res = await rtdb.ref(`rooms/${code}`).transaction((room) => {
+  const res = await roomRef(code).transaction((room) => {
     if (room === null) return null; // cache miss → server retries with real data
     try { error = null; result = fn(room); return result === undefined ? room : result; } catch (e) { error = e; return; }
   });
@@ -260,8 +300,9 @@ async function roomTx(code, fn) {
 export const joinRoom = call(async (req) => {
   const uid = authed(req);
   const code = String(req.data?.code || '').toUpperCase();
+  await rateLimit(uid, 'joinRoom', 60, 3600_000);
   const p = await getProfile(uid);
-  const hostSnap = await rtdb.ref(`rooms/${code}/hostUid`).get();
+  const hostSnap = await roomRef(code, 'hostUid').get();
   if (!hostSnap.exists()) throw new HttpsError('not-found', 'Room not found');
   const blocked = await isBlocked(hostSnap.val(), uid);
   await roomTx(code, (room) => Lobby.join(room, uid, publicPlayer(p), { blockedByHost: blocked }));
@@ -272,9 +313,9 @@ export const joinRoom = call(async (req) => {
 export const leaveRoom = call(async (req) => {
   const uid = authed(req);
   const code = String(req.data?.code || '').toUpperCase();
-  const snap = await rtdb.ref(`rooms/${code}/status`).get();
+  const snap = await roomRef(code, 'status').get();
   if (snap.val() === 'playing') {
-    await rtdb.ref(`rooms/${code}/intents`).push({ uid, type: 'resign', at: ServerValue.TIMESTAMP });
+    await roomRef(code, `intents/${uid}`).set({ uid, type: 'resign', at: ServerValue.TIMESTAMP });
   } else {
     await roomTx(code, (room) => Lobby.leave(room, uid));
   }
@@ -305,55 +346,97 @@ export const inviteFriend = call(async (req) => {
   const code = String(req.data?.code || '');
   const to = String(req.data?.uid || '');
   if (!(await areFriends(uid, to))) throw new HttpsError('permission-denied', 'You can only invite friends');
+  await rateLimit(uid, 'invite', 60, 3600_000);
   if (await isBlocked(to, uid)) throw new HttpsError('permission-denied', 'Cannot invite this player');
-  const room = (await rtdb.ref(`rooms/${code}`).get()).val();
+  if (!isValidRoomCode(code)) throw new HttpsError('invalid-argument', 'Invalid room code');
+  const room = (await roomRef(code).get()).val();
   if (!room?.players?.[uid]) throw new HttpsError('permission-denied', 'Join the room first');
   const me = await getProfile(uid);
   await rtdb.ref(`invites/${to}`).push({ fromUid: uid, fromName: me.name, code, game: room.game, at: Date.now() });
-  await rtdb.ref(`rooms/${code}/friends`).set(true);
+  await roomRef(code, 'friends').set(true);
   return { ok: true };
 });
 
 /* ============================== matchmaking ============================= */
 
+/**
+ * Matchmaking: one ticket document per waiting player (matchQueue/{uid}).
+ * Candidates are found with a plain query; claiming one is a small transaction
+ * on just two ticket docs, so thousands of simultaneous players don't contend
+ * on a shared document or a locked query.
+ */
+const TICKET_TTL = 120_000;
+const MATCH_LOCK_MS = 30_000;
+const stateRef = (uid) => fs.doc(`matchState/${uid}`);
+const lockedAt = (snap) => (snap.exists && Date.now() - (snap.data().matchedAt || 0) < MATCH_LOCK_MS);
+
+/**
+ * Atomically pair `uid` with the owner of ticket `otherId`. Both players'
+ * matchState docs are read & written in the same transaction, so a player can
+ * never be paired twice even when many clients claim at the same moment.
+ * @returns {'ok'|'taken'|'me-matched'}
+ */
+async function tryClaim(uid, otherId) {
+  return fs.runTransaction(async (tx) => {
+    const [other, mine, sMe, sOther] = await Promise.all([
+      tx.get(fs.doc(`matchQueue/${otherId}`)), tx.get(fs.doc(`matchQueue/${uid}`)), tx.get(stateRef(uid)), tx.get(stateRef(otherId)),
+    ]);
+    if (lockedAt(sMe)) return 'me-matched';
+    if (!other.exists || Date.now() - other.data().at > TICKET_TTL || lockedAt(sOther)) return 'taken';
+    tx.delete(other.ref);
+    if (mine.exists) tx.delete(mine.ref);
+    tx.set(stateRef(uid), { matchedAt: Date.now(), with: otherId });
+    tx.set(stateRef(otherId), { matchedAt: Date.now(), with: uid });
+    return 'ok';
+  }).catch(() => 'taken');
+}
+async function findOpponent(uid, game, blocked, before = Infinity) {
+  const q = await fs.collection('matchQueue').where('game', '==', game).where('at', '>', Date.now() - TICKET_TTL).orderBy('at').limit(10).get();
+  for (const d of q.docs) {
+    if (d.id === uid || blocked.includes(d.id) || d.data().at > before) continue;
+    const r = await tryClaim(uid, d.id);
+    if (r === 'ok') return d.id;
+    if (r === 'me-matched') return 'ME_MATCHED';
+  }
+  return null;
+}
+
 export const quickMatch = call(async (req) => {
   const uid = authed(req);
+  await rateLimit(uid, 'quickMatch', 400, 3600_000); // clients re-poll every few seconds while waiting
   const game = req.data?.game === 'chess' ? 'chess' : 'ludo';
   const p = await getProfile(uid);
-  const qRef = fs.doc(`matchQueue/${game}`);
-  const opponent = await fs.runTransaction(async (tx) => {
-    const q = (await tx.get(qRef)).data() || { waiting: [] };
-    const waiting = (q.waiting || []).filter((w) => Date.now() - w.at < 120_000 && w.uid !== uid);
-    const opp = waiting.shift();
-    if (opp) { tx.set(qRef, { waiting }); return opp; }
-    waiting.push({ uid, at: Date.now() });
-    tx.set(qRef, { waiting });
-    return null;
-  });
+  const blocked = (await privRef(uid).get()).data()?.blocked || [];
+  // already paired by someone else? the room/matchFound notification is on its way
+  if (lockedAt(await stateRef(uid).get())) return { waiting: true, claimed: true };
+  let opponent = await findOpponent(uid, game, blocked);
+  if (!opponent) {
+    // keep the original queue position when a waiting player polls again
+    const mine = await fs.doc(`matchQueue/${uid}`).get();
+    const at = mine.exists && mine.data().game === game && Date.now() - mine.data().at < TICKET_TTL ? mine.data().at : Date.now();
+    await fs.doc(`matchQueue/${uid}`).set({ game, at });
+    // someone may have queued at the same instant — try once more for an older ticket
+    opponent = await findOpponent(uid, game, blocked, at);
+  }
+  if (opponent === 'ME_MATCHED') return { waiting: true, claimed: true };
   if (!opponent) return { waiting: true };
-  const oppProfile = await getProfile(opponent.uid);
+  const oppProfile = await getProfile(opponent);
   const code = await uniqueCode();
-  let room = Lobby.newRoom({ code, game, hostUid: opponent.uid, host: publicPlayer(oppProfile), settings: { maxPlayers: 2, chessMinutes: 10 } });
+  let room = Lobby.newRoom({ code, game, hostUid: opponent, host: publicPlayer(oppProfile), settings: { maxPlayers: 2, chessMinutes: 10 } });
   room = Lobby.join(room, uid, publicPlayer(p));
   room.players[uid].ready = true;
   room.quick = true;
-  await rtdb.ref(`rooms/${code}`).set(room);
   // auto-start quick matches
-  const patch = processIntent(room, { uid: opponent.uid, type: 'start' }, { now: Date.now(), rand });
+  const patch = processIntent(room, { uid: opponent, type: 'start' }, { now: Date.now(), rand });
   await applyPatch(code, room, patch);
-  await rtdb.ref(`matchFound/${opponent.uid}`).set({ code, at: Date.now() });
+  await rtdb.ref(`matchFound/${opponent}`).set({ code, at: Date.now() });
   return { code };
 });
 
 export const cancelQuickMatch = call(async (req) => {
   const uid = authed(req);
-  for (const game of ['ludo', 'chess']) {
-    const qRef = fs.doc(`matchQueue/${game}`);
-    await fs.runTransaction(async (tx) => {
-      const q = (await tx.get(qRef)).data();
-      if (q) tx.set(qRef, { waiting: (q.waiting || []).filter((w) => w.uid !== uid) });
-    });
-  }
+  await fs.doc(`matchQueue/${uid}`).delete();
+  await stateRef(uid).delete().catch(() => {});
   return { ok: true };
 });
 
@@ -368,12 +451,14 @@ function mergePatch(room, patch) {
 }
 
 async function applyPatch(code, room, patch) {
-  await rtdb.ref(`rooms/${code}`).set(mergePatch(room, patch));
+  await roomRef(code).set(mergePatch(room, patch));
 }
 
-export const onIntent = onValueCreated({ ref: '/rooms/{code}/intents/{id}', region: RTDB_REGION }, async (event) => {
+// One intent slot per player (rooms/{code}/intents/{uid}) — rules reject a new
+// intent while the previous one is still pending, which caps per-player load.
+export const onIntent = onValueCreated({ ref: '/rooms/{code}/intents/{id}', region: RTDB_REGION, instance: ROOMS_INSTANCE, maxInstances: 1000 }, async (event) => {
   const { code, id } = event.params;
-  const roomRef = rtdb.ref(`rooms/${code}`);
+  const roomRef = event.data.ref.parent.parent; // works for whichever shard fired
   let rejected = null;
   const res = await roomRef.transaction((room) => {
     if (room === null) return null;
@@ -403,9 +488,9 @@ export const onIntent = onValueCreated({ ref: '/rooms/{code}/intents/{id}', regi
 });
 
 async function settleMatch(code) {
-  const flag = await rtdb.ref(`rooms/${code}/rewarded`).transaction((v) => (v ? undefined : true));
+  const flag = await roomRef(code, 'rewarded').transaction((v) => (v ? undefined : true));
   if (!flag.committed) return;
-  const room = (await rtdb.ref(`rooms/${code}`).get()).val();
+  const room = (await roomRef(code).get()).val();
   const uids = Object.keys(room.players || {});
   await Promise.all(uids.map((uid) => fs.runTransaction(async (tx) => {
     const ref = userRef(uid);
@@ -439,16 +524,36 @@ async function settleMatch(code) {
 
 /* =============================== chat safety =============================== */
 
-export const moderateRoomChat = onValueCreated({ ref: '/rooms/{code}/chat/{id}', region: RTDB_REGION }, async (event) => {
+export const moderateRoomChat = onValueCreated({ ref: '/rooms/{code}/chat/{id}', region: RTDB_REGION, instance: ROOMS_INSTANCE }, async (event) => {
   const v = event.data.val();
   const clean = cleanText(v?.text);
-  if (clean !== v?.text) await event.data.ref.update({ text: clean, filtered: true });
+  // never trust the client-supplied display name — use the seated player's name
+  const realName = (await event.data.ref.parent.parent.child(`players/${v?.uid}/name`).get()).val() || 'Player';
+  const patch = {};
+  if (clean !== v?.text) { patch.text = clean; patch.filtered = true; }
+  if (realName !== v?.name) patch.name = realName;
+  if (Object.keys(patch).length) await event.data.ref.update(patch);
 });
 
 export const moderateDM = onValueCreated({ ref: '/dms/{chat}/{id}', region: RTDB_REGION }, async (event) => {
   const v = event.data.val();
   const clean = cleanText(v?.text, 300);
   if (clean !== v?.text) await event.data.ref.update({ text: clean, filtered: true });
+});
+
+/* ============================== leaderboard ============================== */
+
+/**
+ * Cached global leaderboard: one document rebuilt every 15 minutes, so millions
+ * of leaderboard views cost one read each instead of a 50-document query.
+ */
+export const buildLeaderboard = onSchedule({ schedule: 'every 15 minutes', region: REGION }, async () => {
+  const snap = await fs.collection('users').orderBy('stats.wins', 'desc').limit(100).get();
+  const rows = snap.docs.map((d) => {
+    const u = d.data();
+    return { uid: d.id, name: u.name, level: u.level || 1, avatar: u.avatar || '😎', frame: u.frame || 'pframe_basic', wins: u.stats?.wins || 0, played: u.stats?.played || 0 };
+  });
+  await fs.doc('leaderboard/global').set({ rows, updatedAt: Date.now() });
 });
 
 /* ============================ account deletion ============================ */
@@ -469,10 +574,20 @@ export const deleteAccount = call(async (req) => {
 
 /* ================================ cleanup ================================ */
 
-export const cleanupRooms = onSchedule({ schedule: 'every 60 minutes', region: REGION }, async () => {
-  const snap = await rtdb.ref('rooms').orderByChild('createdAt').endAt(Date.now() - Lobby.ROOM_TTL_MS).limitToFirst(500).get();
-  const updates = {};
-  snap.forEach((c) => { updates[c.key] = null; });
-  if (Object.keys(updates).length) await rtdb.ref('rooms').update(updates);
-  logger.info(`cleaned ${Object.keys(updates).length} rooms`);
+export const cleanupRooms = onSchedule({ schedule: 'every 30 minutes', region: REGION, timeoutSeconds: 540 }, async () => {
+  let total = 0;
+  for (const db of roomDbs) {
+    for (let i = 0; i < 200; i++) {
+      const snap = await db.ref('rooms').orderByChild('createdAt').endAt(Date.now() - Lobby.ROOM_TTL_MS).limitToFirst(500).get();
+      const updates = {};
+      snap.forEach((c) => { updates[c.key] = null; });
+      const n = Object.keys(updates).length;
+      if (!n) break;
+      await db.ref('rooms').update(updates);
+      total += n;
+    }
+  }
+  const stale = await fs.collection('matchQueue').where('at', '<', Date.now() - 600_000).limit(500).get();
+  await Promise.all(stale.docs.map((d) => d.ref.delete()));
+  logger.info(`cleaned ${total} rooms, ${stale.size} stale queue entries`);
 });

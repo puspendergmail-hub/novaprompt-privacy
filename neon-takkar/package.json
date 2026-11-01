@@ -11,7 +11,11 @@
     "android:add": "npx cap add android",
     "android:sync": "npx cap sync android",
     "android:open": "npx cap open android",
-    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug"
+    "android:apk": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "emulators": "firebase emulators:start --only auth,firestore,database,functions --project demo-neon-takkar",
+    "test:security": "node tests/emulator/security.mjs",
+    "test:load": "node tests/emulator/load.mjs 50 && node tests/emulator/matchmaking.mjs 20",
+    "test:monkey": "node tests/browser/monkey.cjs 180"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.0",
@@ -20,7 +24,8 @@
     "@capacitor/share": "^7.0.1"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7.4.0"
+    "@capacitor/cli": "^7.4.0",
+    "firebase": "10.14.1"
   },
   "optionalNotes": "For native Google Sign-In on Android also run: npm i @capacitor-firebase/authentication@^7 (requires android/app/google-services.json). See README."
 }

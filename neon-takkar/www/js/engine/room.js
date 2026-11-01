@@ -67,8 +67,9 @@ class IntentError extends Error {}
  */
 export function processIntent(room, intent, { now = Date.now(), rand = Math.random } = {}) {
   const fail = (msg) => { throw new IntentError(msg); };
-  if (!intent || typeof intent.uid !== 'string') fail('Bad intent');
-  const me = room.players?.[intent.uid];
+  if (!intent || typeof intent.uid !== 'string' || typeof intent.type !== 'string') fail('Bad intent');
+  // hasOwn: '__proto__' / 'constructor' must never resolve to a player
+  const me = room.players && Object.hasOwn(room.players, intent.uid) ? room.players[intent.uid] : null;
   if (!me) fail('Not in this room');
 
   if (intent.type === 'start') {
@@ -138,6 +139,7 @@ export function processIntent(room, intent, { now = Date.now(), rand = Math.rand
         ranking: Ludo.ranking(state).map((c) => uidForColor(room, c)).filter(Boolean),
         reason: res.events.some((e) => e.type === 'forfeit') ? 'forfeit' : 'finished',
         endedAt: now,
+        duration: now - (room.startedAt ?? now),
       };
     }
     return patch;
@@ -153,7 +155,7 @@ export function processIntent(room, intent, { now = Date.now(), rand = Math.rand
     ...extra,
     status: 'over',
     clocks,
-    result: { winnerUid: winnerColor ? winnerOf(winnerColor) : null, draw: !winnerColor, reason, endedAt: now },
+    result: { winnerUid: winnerColor ? winnerOf(winnerColor) : null, draw: !winnerColor, reason, endedAt: now, duration: now - (room.startedAt ?? now) },
   });
 
   if (intent.type === 'timeout') {
@@ -184,11 +186,26 @@ export function processIntent(room, intent, { now = Date.now(), rand = Math.rand
 }
 
 /** Reward rules (server side) — deliberately modest & not pay-to-win. */
+/** Matches shorter than this give no coins (stops two accounts farming by instant resigns). */
+export const MIN_REWARD_MATCH_MS = 60_000;
+
 export function rewardsFor(result, uid, game) {
   if (!result) return { coins: 0, xp: 0 };
+  if ((result.duration ?? Infinity) < MIN_REWARD_MATCH_MS) return { coins: 0, xp: 5 };
   if (result.draw) return { coins: 40, xp: 30 };
   if (result.winnerUid === uid) return { coins: game === 'chess' ? 150 : 120, xp: 80 };
   return { coins: 20, xp: 25 };
 }
 
 export { IntentError };
+
+/**
+ * Which Realtime Database shard a room lives in (rooms are spread across
+ * several RTDB instances at large scale). Same function on client & server.
+ */
+export function shardIndex(code, shardCount) {
+  if (!shardCount || shardCount <= 1) return 0;
+  let h = 0;
+  for (const ch of String(code)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % shardCount;
+}

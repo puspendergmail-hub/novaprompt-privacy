@@ -8,7 +8,10 @@ export const START_COINS = 1000;
 export const START_DIAMONDS = 20;
 export const OFFLINE_DAILY_COIN_CAP = 1500;
 export const OFFLINE_DAILY_XP_CAP = 1500;
-export const MAX_ENTRY = { match: { coins: 200, xp: 100 }, mission: { coins: 200, xp: 0 } };
+export const MAX_ENTRY = Object.freeze(Object.assign(Object.create(null), { match: { coins: 200, xp: 100 }, mission: { coins: 200, xp: 0 } }));
+
+/** Finite, non-negative integer or 0 — never NaN/Infinity (NaN balances would break every price check). */
+const safeInt = (v, max = Number.MAX_SAFE_INTEGER) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.max(0, Math.min(max, n)) : 0; };
 
 export const xpForLevel = (lvl) => 200 + (lvl - 1) * 120;
 
@@ -50,13 +53,14 @@ export function applyXp(p, amount) {
 }
 
 export function purchase(profile, itemId) {
-  const it = ITEM[itemId];
+  const it = typeof itemId === 'string' ? ITEM[itemId] : undefined;
   if (!it) throw new Error('Unknown item');
   if (profile.inventory?.[itemId]) throw new Error('Already owned');
+  if (!Number.isFinite(profile.coins) || !Number.isFinite(profile.diamonds)) throw new Error('Account balance error — contact support');
   if (!it.cost) return { inventory: { ...profile.inventory, [itemId]: true } };
   if (it.level && profile.level < it.level) throw new Error(`Unlocks at level ${it.level}`);
   const c = it.cost.coins || 0, d = it.cost.diamonds || 0;
-  if (profile.coins < c || profile.diamonds < d) throw new Error('Not enough currency');
+  if (!(profile.coins >= c) || !(profile.diamonds >= d)) throw new Error('Not enough currency');
   return { coins: profile.coins - c, diamonds: profile.diamonds - d, inventory: { ...profile.inventory, [itemId]: true } };
 }
 
@@ -86,10 +90,10 @@ export function syncOffline(profile, entries, now = Date.now()) {
   const used = profile.offlineSync?.day === day ? profile.offlineSync : { day, coins: 0, xp: 0 };
   let coins = 0, xp = 0, rejected = 0;
   for (const e of (Array.isArray(entries) ? entries.slice(0, 50) : [])) {
-    const lim = MAX_ENTRY[e?.kind];
+    const lim = typeof e?.kind === 'string' && Object.hasOwn(MAX_ENTRY, e.kind) ? MAX_ENTRY[e.kind] : null;
     if (!lim) { rejected++; continue; }
-    const c = Math.max(0, Math.min(lim.coins, Math.floor(Number(e.coins) || 0)));
-    const x = Math.max(0, Math.min(lim.xp, Math.floor(Number(e.xp) || 0)));
+    const c = safeInt(e.coins, lim.coins);
+    const x = safeInt(e.xp, lim.xp);
     const roomC = Math.max(0, OFFLINE_DAILY_COIN_CAP - used.coins - coins);
     const roomX = Math.max(0, OFFLINE_DAILY_XP_CAP - used.xp - xp);
     coins += Math.min(c, roomC);
@@ -117,13 +121,13 @@ export const GUEST_IMPORT_CAPS = { coins: 5000, diamonds: 100, level: 10, items:
 
 export function importGuest(profile, g = {}) {
   if (profile.guestImported) throw new Error('Guest progress was already imported');
-  const num = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+  const num = (v, max) => safeInt(v, max);
   const level = Math.max(profile.level, Math.max(1, num(g.level, GUEST_IMPORT_CAPS.level)));
   const inventory = { ...profile.inventory };
   let added = 0;
   for (const id of Array.isArray(g.items) ? g.items : []) {
     if (added >= GUEST_IMPORT_CAPS.items) break;
-    const it = ITEM[id];
+    const it = typeof id === 'string' ? ITEM[id] : undefined;
     if (!it || inventory[id] || (it.level && level < it.level)) continue;
     inventory[id] = true;
     added++;

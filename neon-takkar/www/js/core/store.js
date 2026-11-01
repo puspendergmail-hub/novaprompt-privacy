@@ -68,12 +68,26 @@ function defaults() {
   };
 }
 
+const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Type-safe merge of saved data over defaults: a saved value is only used when
+ * it has the same type as the default (numbers must be finite). Corrupted or
+ * tampered fields silently fall back to defaults instead of crashing the app.
+ */
 function deepMerge(base, over) {
-  if (!over || typeof over !== 'object' || Array.isArray(over)) return over ?? base;
+  if (!isPlain(over)) return base;
   const out = { ...base };
   for (const [k, v] of Object.entries(over)) {
-    out[k] = base && typeof base[k] === 'object' && !Array.isArray(base[k]) && v && typeof v === 'object' && !Array.isArray(v)
-      ? deepMerge(base[k], v) : v;
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    const d = base[k];
+    if (d === undefined || d === null) {
+      // open-ended maps (inventory, achievements, missions progress…) keep any plain JSON value
+      if (v === null || ['string', 'boolean'].includes(typeof v) || isPlain(v) || Array.isArray(v) || Number.isFinite(v)) out[k] = v;
+    } else if (isPlain(d)) out[k] = isPlain(v) ? deepMerge(d, v) : d;
+    else if (Array.isArray(d)) out[k] = Array.isArray(v) ? v : d;
+    else if (typeof d === 'number') out[k] = Number.isFinite(v) ? v : d;
+    else if (typeof v === typeof d) out[k] = v;
   }
   return out;
 }
@@ -83,7 +97,19 @@ let state = load();
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return deepMerge(defaults(), JSON.parse(raw));
+    if (raw) {
+      const merged = deepMerge(defaults(), JSON.parse(raw));
+      // arrays of records: drop malformed entries
+      merged.characters = merged.characters.filter((c) => isPlain(c) && typeof c.id === 'string' && typeof c.name === 'string');
+      merged.history = merged.history.filter(isPlain);
+      merged.blocked = merged.blocked.filter((x) => typeof x === 'string');
+      merged.level = Math.max(1, Math.floor(merged.level));
+      merged.xp = Math.max(0, merged.xp);
+      merged.coins = Math.max(0, Math.floor(merged.coins));
+      merged.diamonds = Math.max(0, Math.floor(merged.diamonds));
+      merged.sounds.custom = Array.isArray(merged.sounds.custom) ? merged.sounds.custom.filter((c) => isPlain(c) && typeof c.id === 'string') : [];
+      return merged;
+    }
   } catch { /* corrupted or blocked storage */ }
   return defaults();
 }

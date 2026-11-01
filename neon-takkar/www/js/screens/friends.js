@@ -144,7 +144,17 @@ export default {
         const off = online.watchMatchFound((m) => { if (done) return; done = true; off(); document.querySelector('.modal-wrap')?._close?.('found'); go('room', { code: m.code }); });
         const r = await online.call('quickMatch', { game: g });
         if (r.code) { done = true; off(); go('room', { code: r.code }); return; }
+        // keep looking while the player waits (pairs waiting players with each other)
+        const poll = setInterval(async () => {
+          if (done) { clearInterval(poll); return; }
+          try {
+            const again = await online.call('quickMatch', { game: g });
+            if (again.code && !done) { done = true; clearInterval(poll); off(); document.querySelector('.modal-wrap')?._close?.('found'); go('room', { code: again.code }); }
+          } catch { /* transient — next poll */ }
+        }, 6000);
+        setTimeout(() => clearInterval(poll), 120_000);
         const v = await modal({ title: '⚡ Finding a player…', body: '<div class="center"><div class="die rolling" data-v="6" style="margin:10px auto">' + '<i></i>'.repeat(9) + '</div><p class="muted">Waiting for an opponent</p></div>', buttons: [{ label: 'Cancel', value: 'cancel', kind: 'danger' }], dismissible: false });
+        clearInterval(poll);
         if (v === 'cancel' && !done) { done = true; off(); online.call('cancelQuickMatch', {}).catch(() => {}); }
       } catch (e) { toast(e.message, 'error'); }
     }

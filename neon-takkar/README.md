@@ -70,7 +70,7 @@ neon-takkar/
 cd neon-takkar
 npm install
 npm start            # http://localhost:5173  (use a phone-sized viewport)
-npm test             # 51 automated tests
+npm test             # 72 automated unit + fuzz tests
 ```
 
 The tests cover:
@@ -156,6 +156,24 @@ client ──push intent──► RTDB rooms/{code}/intents/{id}
 - **Offline progress sync.** Coins and XP earned offline while signed in are queued, then applied by `syncOfflineProgress` with per-entry and daily caps, because offline results can't be verified.
 
 ---
+
+### Scaling to lakhs of players (room sharding)
+
+One Realtime Database instance handles a limited number of connections and writes per second. For a large launch:
+1. In the Firebase console create extra RTDB instances in the same region, e.g. `neon-takkar-rooms-1` … `neon-takkar-rooms-8`.
+2. In `functions/.env`, set:
+   ```
+   RTDB_ROOM_SHARD_URLS=https://neon-takkar-rooms-1.asia-southeast1.firebasedatabase.app,https://neon-takkar-rooms-2.asia-southeast1.firebasedatabase.app
+   RTDB_ROOMS_INSTANCE=neon-takkar-rooms-*
+   ```
+3. Put the same URLs, in the same order, in `RTDB_ROOM_SHARD_URLS` in `www/js/firebase-config.js`.
+4. Deploy `database.rules.json` to every instance (use `firebase target:apply database rooms <instance…>` and a `database` array in `firebase.json`), then redeploy functions.
+
+Rooms are assigned to shards by room code. Presence, invites and DMs stay on the default database. Full results and the capacity plan are in **[TESTING.md](TESTING.md)**.
+
+## Security & testing
+
+See **[TESTING.md](TESTING.md)**: 72 unit/fuzz tests, 53 hacking scenarios against the real rules and functions in the Firebase emulator, load and matchmaking tests, XSS, corrupted-save and monkey tests, and the bugs they found (all fixed).
 
 ## Content & safety
 

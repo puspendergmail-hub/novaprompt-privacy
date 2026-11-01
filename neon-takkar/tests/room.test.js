@@ -58,7 +58,7 @@ test('ludo: finishing produces a result with winner uid', () => {
   room = apply(room, R.processIntent(room, { uid: 'u0', type: 'start' }, { now: 0 }));
   room.state.players[0].tokens = [55, 56, 56, 56];
   room = apply(room, R.processIntent(room, { uid: 'u0', type: 'roll' }, { now: 1, rand: () => 0 }));
-  const p = R.processIntent(room, { uid: 'u0', type: 'move', token: 0 }, { now: 2 });
+  const p = R.processIntent(room, { uid: 'u0', type: 'move', token: 0 }, { now: 120_000 });
   assert.equal(p.status, 'over');
   assert.equal(p.result.winnerUid, 'u0');
   assert.deepEqual(R.rewardsFor(p.result, 'u0', 'ludo').coins > R.rewardsFor(p.result, 'u1', 'ludo').coins, true);
@@ -104,4 +104,21 @@ test('ludo: three missed turns in a row forfeits the player', () => {
   assert.equal(room.status, 'over');
   assert.equal(room.result.winnerUid, 'u1');
   assert.equal(room.result.reason, 'forfeit');
+});
+
+test('anti-farming: instant resign gives no coins', () => {
+  let room = roomFor('chess', 2);
+  room = apply(room, R.processIntent(room, { uid: 'u0', type: 'start' }, { now: 1000 }));
+  const quick = R.processIntent(room, { uid: 'u0', type: 'resign' }, { now: 5000 });
+  assert.equal(R.rewardsFor(quick.result, 'u1', 'chess').coins, 0);
+  const slow = R.processIntent(room, { uid: 'u0', type: 'resign' }, { now: 1000 + 5 * 60_000 });
+  assert.ok(R.rewardsFor(slow.result, 'u1', 'chess').coins > 0);
+});
+
+test('room shards: stable and evenly spread', () => {
+  assert.equal(R.shardIndex('ABCDEF', 1), 0);
+  assert.equal(R.shardIndex('ABCDEF', 4), R.shardIndex('ABCDEF', 4));
+  const counts = [0, 0, 0, 0];
+  for (let i = 0; i < 20000; i++) counts[R.shardIndex(R.makeRoomCode(), 4)]++;
+  for (const c of counts) assert.ok(c > 4500 && c < 5500, `uneven: ${counts}`);
 });

@@ -20,6 +20,13 @@ export const firebaseConfig = {
 };
 */
 
+/**
+ * Optional, for very large player counts: extra Realtime Database instances that
+ * game rooms are spread across (same list & order as RTDB_ROOM_SHARD_URLS in
+ * functions/.env). Leave empty to keep everything in the default database.
+ */
+export const RTDB_ROOM_SHARD_URLS = [];
+
 /** Region the Cloud Functions are deployed to (must match functions/index.js). */
 export const FUNCTIONS_REGION = 'asia-south1';
 

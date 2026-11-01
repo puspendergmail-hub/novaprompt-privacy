@@ -3,3 +3,5 @@ ios/
 functions/shared/
 *.log
 .firebase/
+.firebaserc
+tests/browser/shots/

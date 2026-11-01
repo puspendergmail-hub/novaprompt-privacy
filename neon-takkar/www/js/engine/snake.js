@@ -72,7 +72,7 @@ export function freeCell(state, rand = Math.random) {
 
 /** Queue a direction change (ignores reversals and duplicates; max 2 buffered). */
 export function turn(state, dir) {
-  if (!DIRS[dir] || state.over) return state;
+  if (typeof dir !== 'string' || !Object.hasOwn(DIRS, dir) || state.over) return state;
   const last = state.queue.length ? state.queue[state.queue.length - 1] : state.dir;
   if (dir === last || dir === OPPOSITE[last] || state.queue.length >= 2) return state;
   return { ...state, queue: [...state.queue, dir] };

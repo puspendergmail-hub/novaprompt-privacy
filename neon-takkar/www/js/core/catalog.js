@@ -105,7 +105,8 @@ export const ITEMS = [
   { id: 'av_ghost', cat: 'avatar', name: 'Bhoot', icon: '👻', cost: C(300) },
 ];
 
-export const ITEM = Object.fromEntries(ITEMS.map((i) => [i.id, i]));
+// Null-prototype map so lookups like ITEM['__proto__'] / ITEM['constructor'] are undefined.
+export const ITEM = Object.assign(Object.create(null), Object.fromEntries(ITEMS.map((i) => [i.id, i])));
 export const byCat = (cat) => ITEMS.filter((i) => i.cat === cat);
 
 export const DEFAULT_EQUIPPED = {
