@@ -1,4 +1,4 @@
-import { store, dailyStatus, claimDailyLocal, ensureMissions } from '../core/store.js';
+import { store, dailyStatus, claimDailyLocal, ensureMissions, isAccount } from '../core/store.js';
 import { go, commonActions } from '../core/router.js';
 import { bindActions, toast, confetti, fmt } from '../core/dom.js';
 import { hudHTML } from '../core/ui.js';
@@ -8,7 +8,7 @@ import * as online from '../net/online.js';
 
 export async function claimDaily() {
   const s = store.get();
-  if (online.configured && s.account.mode === 'google' && online.currentUser()) {
+  if (online.configured && isAccount(s) && online.currentUser()) {
     const r = await online.call('claimDaily', {});
     store.update((st) => { st.daily = { last: r.day, streak: r.streak }; });
     return { reward: r.reward, achievements: [] };

@@ -95,6 +95,17 @@ function persist() {
   }, 60);
 }
 
+/** True when the player has a real (Google or email) account, not a guest. */
+export const isAccount = (s = state) => s.account.mode === 'google' || s.account.mode === 'email';
+
+/** Summary of local guest progress, imported (with caps) into a new account. */
+export function guestSummary() {
+  return {
+    coins: state.coins, diamonds: state.diamonds, level: state.level, xp: state.xp,
+    items: Object.keys(state.inventory).filter((k) => state.inventory[k]),
+  };
+}
+
 export const store = {
   get: () => state,
   on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
@@ -272,7 +283,7 @@ const LOCAL_REWARDS = {
 };
 
 function queueOffline(s, entry) {
-  if (s.account.mode !== 'google') return;
+  if (!isAccount(s)) return;
   s.offline.pending.push({ ...entry, at: Date.now() });
   if (s.offline.pending.length > 100) s.offline.pending.shift();
 }

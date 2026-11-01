@@ -61,3 +61,15 @@ test('cosmetics must be owned', () => {
   assert.deepEqual(E.sanitizeCosmetics(p, { avatar: '😎', frame: 'pframe_basic' }), { avatar: '😎', frame: 'pframe_basic' });
   assert.deepEqual(E.sanitizeCosmetics(p, { avatar: '🦁', frame: 'pframe_fire' }), {});
 });
+
+test('guest progress import is capped and allowed once', () => {
+  const p = prof();
+  const r = E.importGuest(p, { coins: 999999, diamonds: 5, level: 50, xp: 99999, items: ['skin_thug', 'nope', 'pframe_fire', 'skin_classic'] });
+  assert.equal(r.patch.coins, E.GUEST_IMPORT_CAPS.coins);
+  assert.equal(r.patch.diamonds, p.diamonds, 'never lowers existing balance');
+  assert.equal(r.patch.level, E.GUEST_IMPORT_CAPS.level);
+  assert.ok(r.patch.xp < E.xpForLevel(r.patch.level));
+  assert.ok(r.patch.inventory.skin_thug && r.patch.inventory.pframe_fire);
+  assert.equal(r.itemsAdded, 2);
+  assert.throws(() => E.importGuest({ ...p, ...r.patch }, {}), /already/);
+});

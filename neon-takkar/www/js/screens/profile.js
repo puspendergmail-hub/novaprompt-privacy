@@ -1,5 +1,6 @@
 /** Player profile: avatar, name, ID, level, stats, achievements, match history. */
-import { store, xpForLevel, winRate } from '../core/store.js';
+import { store, xpForLevel, winRate, isAccount } from '../core/store.js';
+import { openAccountDialog } from '../core/accountUI.js';
 import { commonActions } from '../core/router.js';
 import { bindActions, toast, promptBox, modal, esc, timeAgo, fmt } from '../core/dom.js';
 import { topbar } from '../core/ui.js';
@@ -20,10 +21,11 @@ export default {
       root.innerHTML = `${topbar('My Profile', { back: false, right: '<button class="icon-btn" data-action="go" data-route="settings" aria-label="Settings">⚙️</button>' })}
         <div class="glass card center">
           <div style="display:flex;justify-content:center;margin:10px 0" data-action="avatar">${avatarHTML(null, 110)}</div>
-          <div style="font-size:22px;font-weight:800">${esc(s.name)} ${s.account.mode === 'google' ? '<span class="verified">✔</span>' : ''}</div>
+          <div style="font-size:22px;font-weight:800">${esc(s.name)} ${isAccount(s) ? '<span class="verified">✔</span>' : ''}</div>
           <div class="small muted" data-action="copyId" style="cursor:pointer">ID: <b>${esc(s.playerId)}</b> 📋</div>
           <div class="row" style="margin:8px 20px"><b style="color:var(--gold)">Lv.${s.level}</b><div class="xpbar grow"><b style="width:${(s.xp / need) * 100}%"></b><span>${s.xp}/${need}</span></div></div>
-          <div class="small muted">${s.account.mode === 'google' ? `🔗 Google: ${esc(s.account.email || '')}` : '👤 Guest account (local)'}</div>
+          <div class="small muted">${s.account.mode === 'google' ? `🔗 Google: ${esc(s.account.email || '')}` : isAccount(s) ? `📧 ${esc(s.account.email || '')}` : '👤 Guest account (saved on this phone)'}</div>
+          ${isAccount(s) ? '' : '<button class="btn sm gold" data-action="createAccount" style="margin-top:8px">📝 Create Account — save progress</button>'}
         </div>
         <div class="grid3">
           <div class="glass card center"><div style="font-size:22px">🏆</div><b style="font-size:22px">${wins}</b><div class="small muted">Wins</div></div>
@@ -72,6 +74,7 @@ export default {
       ...commonActions,
       copyId: () => { navigator.clipboard?.writeText(store.get().playerId).then(() => toast('Player ID copied!', 'success')).catch(() => toast(store.get().playerId)); },
       avatar: pickAvatar,
+      createAccount: () => openAccountDialog('create'),
       edit: async () => {
         const v = await modal({ title: 'Edit Profile', body: '', buttons: [{ label: '✏️ Change name', value: 'name', kind: 'primary' }, { label: '😎 Change avatar', value: 'avatar', kind: 'blue' }, { label: '🖼️ Frame', value: 'frame' }] });
         if (v === 'name') {

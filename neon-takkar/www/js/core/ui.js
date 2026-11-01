@@ -1,5 +1,5 @@
 /** Shared UI components. */
-import { store, xpForLevel } from './store.js';
+import { store, xpForLevel, isAccount } from './store.js';
 import { avatarHTML } from './sprites.js';
 import { esc, fmt, el, confetti, burst } from './dom.js';
 import { ITEM } from './catalog.js';
@@ -19,7 +19,7 @@ export function hudHTML() {
   return `<div class="hud">
     <div data-action="go" data-route="profile" style="cursor:pointer">${avatarHTML(null, 48)}</div>
     <div class="who">
-      <div class="name"><span class="ellipsis">${esc(s.name)}</span>${s.account.mode === 'google' ? '<span class="verified" title="Google account">✔</span>' : ''}</div>
+      <div class="name"><span class="ellipsis">${esc(s.name)}</span>${isAccount(s) ? '<span class="verified" title="Account">✔</span>' : ''}</div>
       <div class="row small" style="gap:6px"><b style="color:var(--gold)">Lv.${s.level}</b>
         <div class="xpbar grow"><b style="width:${pct}%"></b><span>${s.xp}/${need}</span></div></div>
     </div>

@@ -1,5 +1,6 @@
 /** Settings: audio, vibration, language, graphics, privacy, account, logout, delete account. */
-import { store } from '../core/store.js';
+import { store, isAccount } from '../core/store.js';
+import { openAccountDialog } from '../core/accountUI.js';
 import { go, commonActions } from '../core/router.js';
 import { bindActions, toast, confirmBox, modal, esc } from '../core/dom.js';
 import { topbar } from '../core/ui.js';
@@ -20,15 +21,27 @@ export default {
     const draw = () => {
       const s = store.get();
       const google = s.account.mode === 'google';
+      const hasAccount = isAccount(s);
       root.innerHTML = `${topbar('⚙️ Settings')}
         <div class="section-title">Account</div>
         <div class="list-item">
-          <span style="font-size:24px;font-weight:900">${google ? '<span style="color:#4285f4">G</span>' : '👤'}</span>
-          <div class="grow"><div class="title">${google ? 'Google Account Connected' : s.account.mode === 'guest' ? 'Guest Account' : 'Not signed in'}</div>
-            <div class="small muted ellipsis">${google ? esc(s.account.email || '') : 'Progress saved on this device only'}</div></div>
-          ${google ? '<span class="badge green">✔</span>' : online.configured ? '<button class="btn sm primary" data-action="google">Connect</button>' : ''}
+          <span style="font-size:24px;font-weight:900">${google ? '<span style="color:#4285f4">G</span>' : hasAccount ? '📧' : '👤'}</span>
+          <div class="grow"><div class="title">${google ? 'Google Account Connected' : hasAccount ? 'Email Account' : s.account.mode === 'guest' ? 'Guest Account' : 'Not signed in'}</div>
+            <div class="small muted ellipsis">${hasAccount ? esc(s.account.email || '') : 'Progress saved on this phone only'}</div></div>
+          ${hasAccount ? '<span class="badge green">✔</span>' : ''}
         </div>
-        ${google ? `<div class="list-item"><div class="grow small">Pending offline progress: ${s.offline.pending.length} item(s)</div><button class="btn sm ghost" data-action="sync">⟳ Sync now</button></div>` : ''}
+        ${hasAccount ? `
+          ${!google ? '<div class="list-item"><span style="font-size:20px">🔒</span><div class="grow title">Change password</div><button class="btn sm ghost" data-action="resetPw">Email link</button></div>' : ''}
+          <div class="list-item"><div class="grow small">Pending offline progress: ${s.offline.pending.length} item(s)</div><button class="btn sm ghost" data-action="sync">⟳ Sync now</button></div>`
+        : `<div class="glass card" style="border-color:var(--gold)">
+            <b>💾 Save your progress with an account</b>
+            <p class="small muted" style="margin:4px 0 10px">Create a free account to keep your coins, level and items safe, play online and add friends — on any phone. Your guest progress moves into the new account.</p>
+            <div class="grid2">
+              <button class="btn gold" data-action="createAccount">📝 Create Account</button>
+              <button class="btn blue" data-action="loginAccount">🔑 Login</button>
+            </div>
+            ${online.configured ? '<button class="btn google-btn block" data-action="google" style="margin-top:8px"><span class="g">G</span> Continue with Google</button>' : ''}
+          </div>`}
         <div class="section-title">Sound & Feel</div>
         ${toggle('music', 'Music', '🎵')}
         <div class="list-item"><div class="grow"><input type="range" min="0" max="1" step="0.05" data-vol="musicVol" value="${s.settings.musicVol}"></div></div>
@@ -63,8 +76,13 @@ export default {
     draw();
     return bindActions(root, {
       ...commonActions,
+      createAccount: async () => { if (await openAccountDialog('create')) draw(); },
+      loginAccount: async () => { if (await openAccountDialog('login')) draw(); },
+      resetPw: async () => {
+        try { await online.resetPassword(store.get().account.email); toast('Password reset link sent to your email 📧', 'success', 3500); } catch (e) { toast(e.message, 'error'); }
+      },
       google: async () => {
-        try { await online.signInGoogle(); toast('Google account connected!', 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
+        try { store.update((st) => { st.account.importGuest = true; }); await online.signInGoogle(); toast('Google account connected!', 'success'); draw(); } catch (e) { toast(e.message, 'error'); }
       },
       sync: async () => {
         try { const r = await online.syncOffline(); toast(r ? `Synced: +${r.coins || 0} coins applied` : 'Nothing to sync', 'success'); draw(); } catch (e) { toast(e.message, 'error'); }

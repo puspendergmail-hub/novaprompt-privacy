@@ -3,6 +3,7 @@ import { go } from '../core/router.js';
 import { bindActions, toast } from '../core/dom.js';
 import * as online from '../net/online.js';
 import { cleanName } from '../engine/moderation.js';
+import { openAccountDialog } from '../core/accountUI.js';
 
 export default {
   nav: null,
@@ -17,10 +18,14 @@ export default {
           <input class="input" id="nm" maxlength="20" value="${s.name.replace(/"/g, '')}" autocomplete="nickname"></label>
         ${online.configured
           ? `<button class="btn google-btn block" data-action="google"><span class="g">G</span> Continue with Google</button>
+             <div class="grid2" style="margin-top:8px">
+               <button class="btn gold" data-action="create">📝 Create Account</button>
+               <button class="btn blue" data-action="login">🔑 Login</button>
+             </div>
              <div class="center small muted" style="margin:8px 0">or</div>`
           : ''}
         <button class="btn primary block" data-action="guest">🎮 Play as Guest</button>
-        <p class="small muted center" style="margin-top:10px">Guest mode works fully offline — pass-and-play, vs computer, studios & shop.
+        <p class="small muted center" style="margin-top:10px">Guest mode works fully offline — pass-and-play, vs computer, studios & shop. You can create an account later from Settings and keep your progress.
         ${online.configured ? 'Sign in with Google to sync progress and play online with friends.' : 'Online play becomes available once Firebase is configured (see README).'}</p>
       </div>
       <p class="small muted center">By playing you agree to our fair-play & chat-safety rules. <a href="privacy.html" style="color:var(--blue)">Privacy</a></p>
@@ -30,6 +35,13 @@ export default {
       guest: () => {
         store.update((st) => { st.name = nameVal(); st.account.mode = 'guest'; });
         go('home', params, { replace: true });
+      },
+      create: async () => {
+        store.update((st) => { st.name = nameVal(); });
+        if (await openAccountDialog('create')) go('home', params, { replace: true });
+      },
+      login: async () => {
+        if (await openAccountDialog('login')) go('home', params, { replace: true });
       },
       google: async (b) => {
         b.disabled = true;

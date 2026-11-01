@@ -39,7 +39,7 @@ const privRef = (uid) => fs.doc(`users/${uid}/private/data`);
 function authed(req, { google = false } = {}) {
   const a = req.auth;
   if (!a) throw new HttpsError('unauthenticated', 'Please sign in');
-  if (google && a.token.firebase?.sign_in_provider === 'anonymous') throw new HttpsError('permission-denied', 'Sign in with Google for this feature');
+  if (google && a.token.firebase?.sign_in_provider === 'anonymous') throw new HttpsError('permission-denied', 'Create an account or sign in with Google for this feature');
   return a.uid;
 }
 const wrap = (fn) => async (req) => {
@@ -129,6 +129,17 @@ export const syncOfflineProgress = call(async (req) => {
     const r = Eco.syncOffline(s.data(), req.data?.entries);
     tx.update(userRef(uid), r.patch);
     return { ...r.applied, rejected: r.rejected };
+  });
+});
+
+/** Moves a guest's local progress into their newly created account — once, with caps. */
+export const importGuestProgress = call(async (req) => {
+  const uid = authed(req, { google: true });
+  return fs.runTransaction(async (tx) => {
+    const s = await tx.get(userRef(uid));
+    const r = Eco.importGuest(s.data(), req.data || {});
+    tx.update(userRef(uid), r.patch);
+    return { ok: true, itemsAdded: r.itemsAdded };
   });
 });
 

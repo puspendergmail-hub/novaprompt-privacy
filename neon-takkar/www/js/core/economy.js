@@ -1,10 +1,10 @@
 /** Purchases go to the server when signed in (anti-cheat), otherwise local. */
-import { store, buyLocal, equip, checkAchievementsNow } from './store.js';
+import { store, buyLocal, equip, checkAchievementsNow, isAccount } from './store.js';
 import { ITEM } from './catalog.js';
 import * as online from '../net/online.js';
 
 export function isServerEconomy() {
-  return online.configured && store.get().account.mode === 'google' && !!online.currentUser();
+  return online.configured && isAccount() && !!online.currentUser();
 }
 
 export async function purchase(itemId) {

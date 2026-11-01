@@ -111,3 +111,32 @@ export function sanitizeCosmetics(profile, { avatar, frame }) {
   if (ITEM[frame]?.cat === 'profile_frame' && profile.inventory?.[frame]) out.frame = frame;
   return out;
 }
+
+/** Caps for importing unverifiable local guest progress into a new account (once per account). */
+export const GUEST_IMPORT_CAPS = { coins: 5000, diamonds: 100, level: 10, items: 40 };
+
+export function importGuest(profile, g = {}) {
+  if (profile.guestImported) throw new Error('Guest progress was already imported');
+  const num = (v, max) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+  const level = Math.max(profile.level, Math.max(1, num(g.level, GUEST_IMPORT_CAPS.level)));
+  const inventory = { ...profile.inventory };
+  let added = 0;
+  for (const id of Array.isArray(g.items) ? g.items : []) {
+    if (added >= GUEST_IMPORT_CAPS.items) break;
+    const it = ITEM[id];
+    if (!it || inventory[id] || (it.level && level < it.level)) continue;
+    inventory[id] = true;
+    added++;
+  }
+  return {
+    patch: {
+      coins: Math.max(profile.coins, num(g.coins, GUEST_IMPORT_CAPS.coins)),
+      diamonds: Math.max(profile.diamonds, num(g.diamonds, GUEST_IMPORT_CAPS.diamonds)),
+      level,
+      xp: level > profile.level ? Math.min(num(g.xp, xpForLevel(level) - 1), xpForLevel(level) - 1) : profile.xp,
+      inventory,
+      guestImported: true,
+    },
+    itemsAdded: added,
+  };
+}
